@@ -4,21 +4,23 @@ import (
 	"binance-dca-bot-go/internal/config"
 	mynotifier "binance-dca-bot-go/internal/notifier"
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-lambda-go/lambda"
 	binanceconnector "github.com/binance/binance-connector-go"
-	"os"
 	"strconv"
 )
 
-func main() {
+func handleRequest(ctx context.Context, event json.RawMessage) error {
+	// 加载配置
 	envConfig, err := config.LoadConfig()
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error loading config: %v", err)
 	}
 
 	fmt.Printf("Config: %+v\n", envConfig)
 
+	// 初始化通知器
 	var notifier mynotifier.Notifier
 	if envConfig.TelegramChatID != "" && envConfig.TelegramBotToken != "" {
 		notifier = &mynotifier.TelegramNotifier{
@@ -27,22 +29,31 @@ func main() {
 		}
 	}
 
-	// Initialise the client
+	// 初始化 Binance 客户端
 	client := binanceconnector.NewClient(envConfig.BinanceAPIKey, envConfig.BinanceAPISecret)
 
-	// Get symbol
+	// 构造交易对符号
 	symbol := envConfig.TargetAsset + envConfig.OrderCurrency
 
-	// Create new order
+	// 下单
 	newOrder, err := placeOrder(client, symbol, envConfig.Amount)
-	handleError(err, "Error placing order")
+	if err != nil {
+		return fmt.Errorf("error placing order: %v", err)
+	}
 	fmt.Printf("Order placed: \n")
 	fmt.Println(binanceconnector.PrettyPrint(newOrder))
 
-	// check balances
+	// 检查余额并发送通知
 	err = checkAndNotifyBalance(client, notifier, envConfig.OrderCurrency, envConfig.BalanceThreshold)
-	handleError(err, "Error checking balance")
+	if err != nil {
+		return fmt.Errorf("error checking balance: %v", err)
+	}
 
+	return nil
+}
+
+func main() {
+	lambda.Start(handleRequest)
 }
 
 func getBalance(client *binanceconnector.Client, asset string) (string, error) {
@@ -76,15 +87,10 @@ func checkAndNotifyBalance(client *binanceconnector.Client, notifier mynotifier.
 	if threshold != nil && balanceNum < *threshold {
 		message := fmt.Sprintf("Warning: Your %s balance is below the threshold of %.2f. Current balance: %.2f", currency, *threshold, balanceNum)
 		if notifier != nil {
-			return notifier.Notify(message)
+			if err := notifier.Notify(message); err != nil {
+				return fmt.Errorf("error sending notification: %v", err)
+			}
 		}
 	}
 	return nil
-}
-
-func handleError(err error, message string) {
-	if err != nil {
-		fmt.Printf("%s: %v\n", message, err)
-		os.Exit(1)
-	}
 }
