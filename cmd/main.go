@@ -2,13 +2,14 @@ package main
 
 import (
 	"binance-dca-bot-go/internal/config"
-	mynotifier "binance-dca-bot-go/internal/notifier"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 	binanceconnector "github.com/binance/binance-connector-go"
+	"github.com/sudowanderer/notikit/notifier"
 	"strconv"
+	"time"
 )
 
 func handleRequest(ctx context.Context, event json.RawMessage) error {
@@ -18,16 +19,15 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 		return fmt.Errorf("error loading config: %v", err)
 	}
 
-	fmt.Printf("Config: %+v\n", envConfig)
+	// Optional timezone for Telegram messages
+	loc, _ := time.LoadLocation("Asia/Shanghai")
 
-	// 初始化通知器
-	var notifier mynotifier.Notifier
-	if envConfig.TelegramChatID != "" && envConfig.TelegramBotToken != "" {
-		notifier = &mynotifier.TelegramNotifier{
-			ChatID:   envConfig.TelegramChatID,
-			BotToken: envConfig.TelegramBotToken,
-		}
-	}
+	// Telegram Notifier
+	tg := notifier.NewTelegramNotifierWithLocation(
+		envConfig.TelegramBotToken,
+		envConfig.TelegramChatID,
+		loc,
+	)
 
 	// 初始化 Binance 客户端
 	client := binanceconnector.NewClient(envConfig.BinanceAPIKey, envConfig.BinanceAPISecret)
@@ -44,7 +44,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	fmt.Println(binanceconnector.PrettyPrint(newOrder))
 
 	// 检查余额并发送通知
-	err = checkAndNotifyBalance(client, notifier, envConfig.OrderCurrency, envConfig.BalanceThreshold)
+	err = checkAndNotifyBalance(client, tg, envConfig.OrderCurrency, envConfig.BalanceThreshold)
 	if err != nil {
 		return fmt.Errorf("error checking balance: %v", err)
 	}
@@ -77,7 +77,7 @@ func placeOrder(client *binanceconnector.Client, symbol string, amount float64) 
 		Do(context.Background())
 }
 
-func checkAndNotifyBalance(client *binanceconnector.Client, notifier mynotifier.Notifier, currency string, threshold *float64) error {
+func checkAndNotifyBalance(client *binanceconnector.Client, notifier notifier.Notifier, currency string, threshold *float64) error {
 	balance, err := getBalance(client, currency)
 	if err != nil {
 		return fmt.Errorf("error fetching balance: %v", err)
