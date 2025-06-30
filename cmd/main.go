@@ -1,11 +1,14 @@
 package main
 
 import (
+	"binance-dca-bot-go/env"
 	"binance-dca-bot-go/internal/config"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	binanceconnector "github.com/binance/binance-connector-go"
 	"github.com/sudowanderer/notikit/notifier"
 	"strconv"
@@ -13,10 +16,42 @@ import (
 )
 
 func handleRequest(ctx context.Context, event json.RawMessage) error {
-	// 加载配置
-	envConfig, err := config.LoadConfig()
+	// 1. 定义 provider 和 cfgEvent
+	var provider config.ParameterProvider
+	var cfgEvent config.ConfigEvent
+	var err error
+
+	if env.IsLambdaEnvironment() {
+		// 云端：直接反序列化 EventBridge 传入的参数名字
+		if err = json.Unmarshal(event, &cfgEvent); err != nil {
+			return fmt.Errorf("failed to unmarshal event: %v", err)
+		}
+		// 用 SSM 拉取真正的参数值
+		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to load AWS config: %v", err)
+		}
+		provider = &config.SSMParameterProvider{
+			Client: ssm.NewFromConfig(awsCfg),
+		}
+	} else {
+		// 本地：读本地 JSON 做 Mock
+		var mock *config.LocalMockProvider
+		mock, err = config.NewLocalMockProviderFromFile("local_config.json")
+		if err != nil {
+			return fmt.Errorf("failed to open local config: %v", err)
+		}
+		provider = mock
+		// 把 mock.values 自动填到 cfgEvent 里
+		if err = config.NewConfigEventFromLocalMock(mock, &cfgEvent); err != nil {
+			return fmt.Errorf("failed to build config event from mock: %v", err)
+		}
+	}
+
+	// 2. 统一加载 Config
+	myCfg, err := config.LoadConfig(ctx, provider, cfgEvent)
 	if err != nil {
-		return fmt.Errorf("error loading config: %v", err)
+		return fmt.Errorf("load config failed: %v", err)
 	}
 
 	// Optional timezone for Telegram messages
@@ -24,19 +59,19 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 
 	// Telegram Notifier
 	tg := notifier.NewTelegramNotifierWithLocation(
-		envConfig.TelegramBotToken,
-		envConfig.TelegramChatID,
+		myCfg.TelegramBotToken,
+		myCfg.TelegramChatID,
 		loc,
 	)
 
 	// 初始化 Binance 客户端
-	client := binanceconnector.NewClient(envConfig.BinanceAPIKey, envConfig.BinanceAPISecret)
+	client := binanceconnector.NewClient(myCfg.BinanceAPIKey, myCfg.BinanceAPISecret)
 
 	// 构造交易对符号
-	symbol := envConfig.TargetAsset + envConfig.OrderCurrency
+	symbol := myCfg.TargetAsset + myCfg.OrderCurrency
 
 	// 下单
-	newOrder, err := placeOrder(client, symbol, envConfig.Amount)
+	newOrder, err := placeOrder(client, symbol, myCfg.Amount)
 	if err != nil {
 		return fmt.Errorf("error placing order: %v", err)
 	}
@@ -44,7 +79,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	fmt.Println(binanceconnector.PrettyPrint(newOrder))
 
 	// 检查余额并发送通知
-	err = checkAndNotifyBalance(client, tg, envConfig.OrderCurrency, envConfig.BalanceThreshold)
+	err = checkAndNotifyBalance(client, tg, myCfg.OrderCurrency, myCfg.BalanceThreshold)
 	if err != nil {
 		return fmt.Errorf("error checking balance: %v", err)
 	}

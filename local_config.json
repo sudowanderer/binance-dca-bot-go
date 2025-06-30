@@ -1,0 +1,10 @@
+{
+  "targetAssetParameter": "BTC",
+  "amountParameter": "0.001",
+  "orderCurrencyParameter": "USDT",
+  "balanceThresholdParameter": "100.0",
+  "telegramBotTokenParameter": "LOCAL_TELEGRAM_BOT_TOKEN",
+  "telegramChatIDParameter": "12345678",
+  "binanceApiKeyParameter": "LOCAL_BINANCE_API_KEY",
+  "binanceApiSecretParameter": "LOCAL_BINANCE_API_SECRET"
+}
