@@ -11,47 +11,68 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	binanceconnector "github.com/binance/binance-connector-go"
 	"github.com/sudowanderer/notikit/notifier"
+	"log"
+	"os"
 	"strconv"
 	"time"
 )
 
-func handleRequest(ctx context.Context, event json.RawMessage) error {
-	// 1. 定义 provider 和 cfgEvent
-	var provider config.ParameterProvider
-	var cfgEvent config.ConfigEvent
-	var err error
-
+func main() {
 	if env.IsLambdaEnvironment() {
-		// 云端：直接反序列化 EventBridge 传入的参数名字
-		if err = json.Unmarshal(event, &cfgEvent); err != nil {
-			return fmt.Errorf("failed to unmarshal event: %v", err)
-		}
-		// 用 SSM 拉取真正的参数值
+		// normal Lambda entrypoint
+		lambda.Start(handleRequest)
+		return
+	}
+
+	// --- local testing mode ---
+	log.Println("🌱 Running in local mode, reading local_event.json …")
+
+	data, err := os.ReadFile("local_event.json")
+	if err != nil {
+		log.Fatalf("failed to read event file: %v", err)
+	}
+
+	if err := handleRequest(context.Background(), data); err != nil {
+		log.Fatalf("error in handleRequest: %v", err)
+	}
+}
+
+func handleRequest(ctx context.Context, event json.RawMessage) error {
+	// parse event into ConfigEvent
+	var cfgEvent config.ConfigEvent
+	if err := json.Unmarshal(event, &cfgEvent); err != nil {
+		return fmt.Errorf("failed to unmarshal event: %w", err)
+	}
+
+	// choose provider
+	var provider config.ParameterProvider
+	if env.IsLambdaEnvironment() {
+		// AWS: real SSM
 		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to load AWS config: %v", err)
+			return fmt.Errorf("loading AWS config: %w", err)
 		}
 		provider = &config.SSMParameterProvider{
 			Client: ssm.NewFromConfig(awsCfg),
 		}
 	} else {
-		// 本地：读本地 JSON 做 Mock
-		var mock *config.LocalMockProvider
-		mock, err = config.NewLocalMockProviderFromFile("local_config.json")
+		// Local: mock from file
+		mockProv, err := config.NewLocalMockProviderFromFile("local_config.json")
 		if err != nil {
-			return fmt.Errorf("failed to open local config: %v", err)
+			return fmt.Errorf("failed to load local mock provider: %w", err)
 		}
-		provider = mock
-		// 把 mock.values 自动填到 cfgEvent 里
-		if err = config.NewConfigEventFromLocalMock(mock, &cfgEvent); err != nil {
-			return fmt.Errorf("failed to build config event from mock: %v", err)
-		}
+		provider = mockProv
 	}
 
-	// 2. 统一加载 Config
+	// now call your existing loader (rename if needed)
 	myCfg, err := config.LoadConfig(ctx, provider, cfgEvent)
 	if err != nil {
-		return fmt.Errorf("load config failed: %v", err)
+		return fmt.Errorf("loading business config: %w", err)
+	}
+
+	if !env.IsLambdaEnvironment() {
+		// ... the rest of your logic using myCfg ...
+		log.Printf("Loaded config: %+v\n", myCfg)
 	}
 
 	// Optional timezone for Telegram messages
@@ -85,10 +106,6 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	}
 
 	return nil
-}
-
-func main() {
-	lambda.Start(handleRequest)
 }
 
 func getBalance(client *binanceconnector.Client, asset string) (string, error) {

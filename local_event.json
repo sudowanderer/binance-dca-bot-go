@@ -1,0 +1,10 @@
+{
+  "targetAssetParameter": "BTC",
+  "amountParameter": "10",
+  "orderCurrencyParameter": "FDUSD",
+  "balanceThresholdParameter": "5000",
+  "telegramBotTokenParameter": "/myapp/telegram/token",
+  "telegramChatIDParameter": "123456789",
+  "binanceApiKeyParameter": "/myapp/binance/apiKey",
+  "binanceApiSecretParameter": "/myapp/binance/apiSecret"
+}
