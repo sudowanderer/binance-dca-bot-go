@@ -6,15 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	binanceconnector "github.com/binance/binance-connector-go"
 	"github.com/sudowanderer/notikit/notifier"
-	"log"
-	"os"
-	"strconv"
-	"time"
 )
 
 func main() {
@@ -94,7 +95,10 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	// 下单
 	newOrder, err := placeOrder(client, symbol, myCfg.Amount)
 	if err != nil {
-		return fmt.Errorf("error placing order: %v", err)
+		errStrTemplate := "error placing order: %v"
+		errStr := fmt.Sprintf(errStrTemplate, err)
+		_ = tg.Notify(errStr)
+		return fmt.Errorf(errStrTemplate, err)
 	}
 	fmt.Printf("Order placed: \n")
 	fmt.Println(binanceconnector.PrettyPrint(newOrder))
