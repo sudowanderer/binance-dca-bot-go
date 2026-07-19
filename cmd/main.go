@@ -76,15 +76,10 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 		log.Printf("Loaded config: %+v\n", myCfg)
 	}
 
-	// Optional timezone for Telegram messages
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-
-	// Telegram Notifier
-	tg := notifier.NewTelegramNotifierWithLocation(
-		myCfg.TelegramBotToken,
-		myCfg.TelegramChatID,
-		loc,
-	)
+	notificationSender, err := buildNotifier(myCfg.Notifications)
+	if err != nil {
+		return fmt.Errorf("building notifier: %w", err)
+	}
 
 	// 初始化 Binance 客户端
 	client := binanceconnector.NewClient(myCfg.BinanceAPIKey, myCfg.BinanceAPISecret)
@@ -97,14 +92,16 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	if err != nil {
 		errStrTemplate := "error placing order: %v"
 		errStr := fmt.Sprintf(errStrTemplate, err)
-		_ = tg.Notify(errStr)
+		if notificationSender != nil {
+			_ = notificationSender.Notify(errStr)
+		}
 		return fmt.Errorf(errStrTemplate, err)
 	}
 	fmt.Printf("Order placed: \n")
 	fmt.Println(binanceconnector.PrettyPrint(newOrder))
 
 	// 检查余额并发送通知
-	err = checkAndNotifyBalance(client, tg, myCfg.OrderCurrency, myCfg.BalanceThreshold)
+	err = checkAndNotifyBalance(client, notificationSender, myCfg.OrderCurrency, myCfg.BalanceThreshold)
 	if err != nil {
 		return fmt.Errorf("error checking balance: %v", err)
 	}
@@ -131,6 +128,37 @@ func placeOrder(client *binanceconnector.Client, symbol string, amount float64) 
 	return client.NewCreateOrderService().Symbol(symbol).
 		Side("BUY").Type("MARKET").QuoteOrderQty(amount).
 		Do(context.Background())
+}
+
+func buildNotifier(configs []config.NotificationConfig) (notifier.Notifier, error) {
+	if len(configs) == 0 {
+		return nil, nil
+	}
+
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	notifiers := make([]notifier.Notifier, 0, len(configs))
+	for _, cfg := range configs {
+		switch cfg.Type {
+		case "telegram":
+			notifiers = append(notifiers, notifier.NewTelegramNotifierWithLocation(
+				cfg.TelegramBotToken,
+				cfg.TelegramChatID,
+				loc,
+			))
+		case "bark":
+			notifiers = append(notifiers, notifier.NewBarkNotifierWithKeyAndGroup(
+				cfg.BarkKey,
+				cfg.BarkGroup,
+			))
+		default:
+			return nil, fmt.Errorf("unsupported notification type %q", cfg.Type)
+		}
+	}
+
+	if len(notifiers) == 1 {
+		return notifiers[0], nil
+	}
+	return notifier.NewMultiNotifier(notifiers...), nil
 }
 
 func checkAndNotifyBalance(client *binanceconnector.Client, notifier notifier.Notifier, currency string, threshold *float64) error {

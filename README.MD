@@ -6,7 +6,7 @@ Binance DCA Bot is an open-source tool for automated Dollar-Cost Averaging (DCA)
 
 - **Automated DCA Orders**: Automatically place market buy orders for your target assets at predefined intervals.
 - **Balance Monitoring**: Monitors your Binance account balance and sends warnings when the balance drops below a specified threshold.
-- **Telegram Notifications**: Sends real-time notifications to your Telegram account for order confirmations and low-balance warnings.
+- **Configurable Notifications**: Sends order failure and low-balance notifications through Bark, Telegram, or multiple channels.
 - **AWS Parameter Store Support**: Fetches configuration parameters securely from AWS Parameter Store.
 
 ## Installation
@@ -15,7 +15,7 @@ Binance DCA Bot is an open-source tool for automated Dollar-Cost Averaging (DCA)
 
 - Go (version 1.20 or later)
 - A Binance account with API key and secret
-- A Telegram bot for notifications
+- A Bark key or Telegram bot for notifications
 - AWS account with access to Parameter Store
 - AWS SDK for Go
 
@@ -30,7 +30,7 @@ Binance DCA Bot is an open-source tool for automated Dollar-Cost Averaging (DCA)
 
 2. Set up AWS Parameter Store with the required parameters:
 
-   - `/myapp/telegram/token`
+   - `/myapp/bark/key`
    - `/myapp/binance/apiKey`
    - `/myapp/binance/apiSecret`
 
@@ -63,7 +63,7 @@ Configuration is managed through AWS Parameter Store. Ensure that the following 
 
 | Parameter Name                  | Description                                               |
 | ------------------------------- | --------------------------------------------------------- |
-| `/myapp/telegram/token`         | Your Telegram bot token for notifications.                |
+| `/myapp/bark/key`               | Your Bark key for notifications.                          |
 | `/myapp/binance/apiKey`         | Your Binance API key.                                     |
 | `/myapp/binance/apiSecret`      | Your Binance API secret.                                  |
 
@@ -77,17 +77,39 @@ The bot requires an input event configuration in JSON format. Below is an exampl
   "amountParameter": "10",
   "orderCurrencyParameter": "FDUSD",
   "balanceThresholdParameter": "5000",
-  "telegramBotTokenParameter": "/myapp/telegram/token",
-  "telegramChatIDParameter": "123456789",
+  "notifications": [
+    {
+      "type": "bark",
+      "barkKeyParameter": "/myapp/bark/key",
+      "barkGroupParameter": "binance-dca"
+    }
+  ],
   "binanceApiKeyParameter": "/myapp/binance/apiKey",
   "binanceApiSecretParameter": "/myapp/binance/apiSecret"
 }
 ```
+
+To send through Telegram instead:
+
+```json
+{
+  "notifications": [
+    {
+      "type": "telegram",
+      "telegramBotTokenParameter": "/myapp/telegram/token",
+      "telegramChatIDParameter": "123456789"
+    }
+  ]
+}
+```
+
+To send through multiple channels, include multiple entries in `notifications`. If `notifications` is not configured, the legacy `telegramBotTokenParameter` and `telegramChatIDParameter` fields are still supported.
+
 ### Notifications
 
-The bot sends notifications to your Telegram account when:
+The bot sends notifications to the configured channels when:
 
-- An order is placed.
+- An order fails.
 - Your balance falls below the configured threshold.
 
 ## Contributing

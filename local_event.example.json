@@ -3,8 +3,13 @@
   "amountParameter": "10",
   "orderCurrencyParameter": "FDUSD",
   "balanceThresholdParameter": "5000",
-  "telegramBotTokenParameter": "/myapp/telegram/token",
-  "telegramChatIDParameter": "123456789",
+  "notifications": [
+    {
+      "type": "bark",
+      "barkKeyParameter": "/myapp/bark/key",
+      "barkGroupParameter": "binance-dca"
+    }
+  ],
   "binanceApiKeyParameter": "/myapp/binance/apiKey",
   "binanceApiSecretParameter": "/myapp/binance/apiSecret"
 }
