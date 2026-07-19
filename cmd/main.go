@@ -139,7 +139,10 @@ func checkAndNotifyBalance(client *binanceconnector.Client, notifier notifier.No
 		return fmt.Errorf("error fetching balance: %v", err)
 	}
 
-	balanceNum, _ := strconv.ParseFloat(balance, 64)
+	balanceNum, err := strconv.ParseFloat(balance, 64)
+	if err != nil {
+		return fmt.Errorf("error parsing %s balance %q: %w", currency, balance, err)
+	}
 	if threshold != nil && balanceNum < *threshold {
 		message := fmt.Sprintf("Warning: Your %s balance is below the threshold of %.2f. Current balance: %.2f", currency, *threshold, balanceNum)
 		if notifier != nil {

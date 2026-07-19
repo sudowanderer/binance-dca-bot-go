@@ -29,6 +29,9 @@ func (p *SSMParameterProvider) GetParameter(ctx context.Context, name string) (s
 	if err != nil {
 		return "", fmt.Errorf("ssm GetParameter %q: %w", name, err)
 	}
+	if out.Parameter == nil || out.Parameter.Value == nil {
+		return "", fmt.Errorf("ssm GetParameter %q: empty parameter value", name)
+	}
 	return *out.Parameter.Value, nil
 }
 

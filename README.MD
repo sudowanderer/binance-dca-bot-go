@@ -37,7 +37,7 @@ Binance DCA Bot is an open-source tool for automated Dollar-Cost Averaging (DCA)
 3. Build the binary:
 
    ```bash
-   go build -o binance_dca_bot ./cmd/main.go
+   go build -o binance-dca-bot ./cmd/main.go
    ```
 
 4. Run the bot:
@@ -45,6 +45,15 @@ Binance DCA Bot is an open-source tool for automated Dollar-Cost Averaging (DCA)
    ```bash
    ./binance-dca-bot
    ```
+
+For local testing, create personal config files from the checked-in examples:
+
+```bash
+cp local_config.example.json local_config.json
+cp local_event.example.json local_event.json
+```
+
+Then fill `local_config.json` with your local secret values. The real local JSON files are ignored by Git.
 
 ## Usage
 
