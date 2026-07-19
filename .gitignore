@@ -1,0 +1,11 @@
+# Build artifacts
+*.zip
+bootstrap
+
+# Local config
+local_config.json
+local_event.json
+
+# OS / IDE
+.DS_Store
+.idea/

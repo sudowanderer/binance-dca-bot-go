@@ -1,5 +1,0 @@
-{
-  "/myapp/telegram/token":     "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-  "/myapp/binance/apiKey":     "LOCAL_BINANCE_API_KEY",
-  "/myapp/binance/apiSecret":  "LOCAL_BINANCE_API_SECRET"
-}

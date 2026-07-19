@@ -1,0 +1,5 @@
+{
+  "/myapp/telegram/token": "YOUR_TELEGRAM_BOT_TOKEN",
+  "/myapp/binance/apiKey": "YOUR_BINANCE_API_KEY",
+  "/myapp/binance/apiSecret": "YOUR_BINANCE_API_SECRET"
+}
